@@ -14,7 +14,7 @@ async def orm_add_subscribe(session: AsyncSession, data: dict):
     await session.commit()
 
 
-async def orm_get_subscribe(session: AsyncSession):
+async def orm_get_subscriptions(session: AsyncSession):
     query = select(Subscribe)
     result = await session.execute(query)
     return result.scalars().all()
