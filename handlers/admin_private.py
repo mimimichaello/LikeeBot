@@ -22,7 +22,7 @@ ADMIN_KB = get_keyboard(
 
 
 @admin_router.message(Command("admin"))
-async def add_subscribe(message: types.Message):
+async def admin_features(message: types.Message):
     await message.answer("Что хотите сделать?", reply_markup=ADMIN_KB)
 
 
@@ -99,9 +99,17 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
 
 @admin_router.message(AddSubscribe.name, F.text)
 async def add_name(message: types.Message, state: FSMContext):
+    if len(message.text) >= 50:
+        await message.answer("Название не может быть больше 50 символов")
+        return
+
     await state.update_data(name=message.text)
     await message.answer("Введите описание подписки")
     await state.set_state(AddSubscribe.description)
+
+@admin_router.message(AddSubscribe.name)
+async def add_name2(message: types.Message, state: FSMContext):
+    await message.answer("Вы ввели не допустимые данные, введите текст названия подписки")
 
 
 @admin_router.message(AddSubscribe.description, F.text)
@@ -111,10 +119,26 @@ async def add_description(message: types.Message, state: FSMContext):
     await state.set_state(AddSubscribe.price)
 
 
+@admin_router.message(AddSubscribe.description)
+async def add_description2(message: types.Message, state: FSMContext):
+    await message.answer("Вы ввели не допустимые данные, введите текст описания подписки")
+
 @admin_router.message(AddSubscribe.price, F.text)
-async def add_image(message: types.Message, state: FSMContext):
+async def add_price(message: types.Message, state: FSMContext):
+    try:
+        float(message.text)
+    except ValueError:
+        await message.answer("Введите корректное значение цены")
+        return
+
     await state.update_data(price=message.text)
     await message.answer("Подписка добавлена", reply_markup=ADMIN_KB)
     data = await state.get_data()
     await message.answer(str(data))
     await state.clear()
+
+@admin_router.message(AddSubscribe.price)
+async def add_price2(message: types.Message, state: FSMContext):
+    await message.answer("Вы ввели не допустимые данные, введите стоимость подписки")
+
+
