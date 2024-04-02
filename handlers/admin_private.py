@@ -4,6 +4,10 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.orm_query import orm_add_subscribe
+
 from filters.chat_types import ChatTypeFilter, IsAdmin
 from keyboards.get_keyboard import get_keyboard
 
@@ -26,17 +30,17 @@ async def admin_features(message: types.Message):
     await message.answer("Что хотите сделать?", reply_markup=ADMIN_KB)
 
 
-@admin_router.message(F.text == "Я так, просто посмотреть зашел")
+@admin_router.message(F.text == "Список подписок📃")
 async def starring_at_subscribe(message: types.Message):
-    await message.answer("Ок, вот список подписок")
+    await message.answer("Ок, вот список подписок:")
 
 
-@admin_router.message(F.text == "Изменить подпискy")
+@admin_router.message(F.text == "Изменить подпискy✏️")
 async def change_subscribe(message: types.Message):
     await message.answer("ОК, вот список подписок")
 
 
-@admin_router.message(F.text == "Удалить подпискy")
+@admin_router.message(F.text == "Удалить подпискy❌")
 async def delete_subscribe(message: types.Message):
     await message.answer("Выберите подписку(и) для удаления")
 
@@ -56,7 +60,7 @@ class AddSubscribe(StatesGroup):
     }
 
 
-@admin_router.message(StateFilter(None), F.text == "Добавить подпискy")
+@admin_router.message(StateFilter(None), F.text == "Добавить подпискy✅")
 async def add_subscribe(message: types.Message, state: FSMContext):
     await message.answer(
         "Введите название подписки", reply_markup=types.ReplyKeyboardRemove()
@@ -107,9 +111,12 @@ async def add_name(message: types.Message, state: FSMContext):
     await message.answer("Введите описание подписки")
     await state.set_state(AddSubscribe.description)
 
+
 @admin_router.message(AddSubscribe.name)
 async def add_name2(message: types.Message, state: FSMContext):
-    await message.answer("Вы ввели не допустимые данные, введите текст названия подписки")
+    await message.answer(
+        "Вы ввели не допустимые данные, введите текст названия подписки"
+    )
 
 
 @admin_router.message(AddSubscribe.description, F.text)
@@ -121,10 +128,13 @@ async def add_description(message: types.Message, state: FSMContext):
 
 @admin_router.message(AddSubscribe.description)
 async def add_description2(message: types.Message, state: FSMContext):
-    await message.answer("Вы ввели не допустимые данные, введите текст описания подписки")
+    await message.answer(
+        "Вы ввели не допустимые данные, введите текст описания подписки"
+    )
+
 
 @admin_router.message(AddSubscribe.price, F.text)
-async def add_price(message: types.Message, state: FSMContext):
+async def add_price(message: types.Message, state: FSMContext, session: AsyncSession):
     try:
         float(message.text)
     except ValueError:
@@ -132,13 +142,16 @@ async def add_price(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(price=message.text)
-    await message.answer("Подписка добавлена", reply_markup=ADMIN_KB)
     data = await state.get_data()
-    await message.answer(str(data))
-    await state.clear()
+    try:
+        await orm_add_subscribe(session, data)
+        await message.answer("Подписка добавлена", reply_markup=ADMIN_KB)
+        await state.clear()
+    except Exception as e:
+        await message.answer(f"Ошибка: {str(e)}", reply_markup=ADMIN_KB)
+        await state.clear()
+
 
 @admin_router.message(AddSubscribe.price)
 async def add_price2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, введите стоимость подписки")
-
-
