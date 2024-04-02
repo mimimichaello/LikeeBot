@@ -76,9 +76,3 @@ async def faq_cmd(message: types.Message):
     await message.answer("FAQ")
 
 
-@user_private_router.message(F.text)
-async def active_cmd(message: types.Message):
-    await message.answer(
-        "Вы отправили неккоректное сообщение. Прочитайте еще раз <b>Инструкцию</b>, или откройте <b>Меню</b> с помощью /menu и выберите нужную команду.",
-        parse_mode=ParseMode.HTML,
-    )
