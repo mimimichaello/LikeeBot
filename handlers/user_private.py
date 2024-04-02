@@ -1,8 +1,11 @@
 ﻿from aiogram import types, Router, F
 from aiogram.filters import CommandStart, Command, or_f
 from aiogram.enums import ParseMode
+from database.orm_query import orm_get_subscriptions
 from filters.chat_types import ChatTypeFilter
 from keyboards import get_keyboard, utils_reply
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 user_private_router = Router()
@@ -18,19 +21,23 @@ async def start_cmd(message: types.Message):
     if user_id not in users_started:
         users_started.add(user_id)
         await message.answer(
-            f"Привет, {message.from_user.username}! \nДля начала внимательно изучите вкладки <b>Навигация</b> и <b>Инструкция</b>! \nЧтобы открыть меню, введите команду /menu.",
+            f"Привет, {message.from_user.username}! \nДля начала внимательно изучите вкладки <b>Навигация</b> и <b>Инструкция</b>!",
             parse_mode=ParseMode.HTML,
-            reply_markup=utils_reply.start_menu()
+            reply_markup=utils_reply.start_menu(),
         )
     else:
         await message.answer(
-            f"{message.from_user.username}, выберите опцию. \nЧтобы открыть меню, введите команду /menu.",
-            reply_markup=utils_reply.start_menu()
+            f"{message.from_user.username}, выберите опцию.",
+            reply_markup=utils_reply.start_menu(),
         )
 
 
-@user_private_router.message(Command("menu"))
-async def menu_cmd(message: types.Message):
+@user_private_router.message(or_f(Command("subscriptions"), (F.text.lower() == "подписки")))
+async def menu_cmd(message: types.Message, session: AsyncSession):
+    for subscribe in await orm_get_subscriptions(session):
+        await message.answer(
+            f"Название: <strong>{subscribe.name}</strong> \nОписание: {subscribe.description} \nСтоимость:{round(subscribe.price)}",
+        )
     await message.answer("Меню", reply_markup=utils_reply.start_menu())
 
 
@@ -74,5 +81,3 @@ async def payment_cmd(message: types.Message):
 @user_private_router.message(Command("faq"))
 async def faq_cmd(message: types.Message):
     await message.answer("FAQ")
-
-
