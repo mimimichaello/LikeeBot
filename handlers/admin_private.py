@@ -102,9 +102,12 @@ async def add_subscribe(message: types.Message, state: FSMContext):
 @admin_router.message(StateFilter("*"), Command("отмена"))
 @admin_router.message(StateFilter("*"), F.text.casefold() == "отмена")
 async def cancel_handler(message: types.Message, state: FSMContext) -> None:
+
     current_state = await state.get_state()
     if current_state is None:
         return
+    if AddSubscribe.subscribe_for_change:
+        AddSubscribe.subscribe_for_change = None
 
     await state.clear()
     await message.answer("Действия отменены", reply_markup=ADMIN_KB)
@@ -188,7 +191,7 @@ async def add_price(message: types.Message, state: FSMContext, session: AsyncSes
             await orm_update_subscribe(session, AddSubscribe.subscribe_for_change.id, data)
         else:
             await orm_add_subscribe(session, data)
-        await message.answer("Подписка добавлена", reply_markup=ADMIN_KB)
+        await message.answer("Подписка добавлена | Изменена", reply_markup=ADMIN_KB)
         await state.clear()
     except Exception as e:
         await message.answer(f"Ошибка: {str(e)}", reply_markup=ADMIN_KB)
