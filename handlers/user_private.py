@@ -36,9 +36,9 @@ async def start_cmd(message: types.Message):
 async def menu_cmd(message: types.Message, session: AsyncSession):
     for subscribe in await orm_get_subscriptions(session):
         await message.answer(
-            f"Название: <strong>{subscribe.name}</strong> \nОписание: {subscribe.description} \nСтоимость:{round(subscribe.price)}",
+            f"Название: <strong>{subscribe.name}</strong> \nДопустимое количество ссылок в сутки: {subscribe.description} \nСтоимость: {round(subscribe.price)}",
         )
-    await message.answer("Меню", reply_markup=utils_reply.start_menu())
+    await message.answer("Подписки ⏫", reply_markup=utils_reply.start_menu())
 
 
 @user_private_router.message(

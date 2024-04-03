@@ -39,7 +39,7 @@ class AddSubscribe(StatesGroup):
 
     texts = {
         "AddSubscribe:name": "Введите название заново",
-        "AddSubscribe:description": "Введите описание заново",
+        "AddSubscribe:description": "Введите допустимое количество ссылок в сутки заново",
         "AddSubscribe:price": "Введите стоимость заново",
     }
 
@@ -53,7 +53,7 @@ async def admin_features(message: types.Message):
 async def starring_at_subscribe(message: types.Message, session: AsyncSession):
     for subscribe in await orm_get_subscriptions(session):
         await message.answer(
-            f"Название: <strong>{subscribe.name}</strong> \nОписание: {subscribe.description} \nСтоимость: {round(subscribe.price)}",
+            f"Название: <strong>{subscribe.name}</strong> \nДопустимое количество ссылок в сутки: {subscribe.description} \nСтоимость: {round(subscribe.price)}",
             reply_markup=get_callback_btns(
                 btns={
                     "Изменить ✏️": f"change_{subscribe.id}",
@@ -145,7 +145,7 @@ async def add_name(message: types.Message, state: FSMContext):
             return
 
         await state.update_data(name=message.text)
-    await message.answer("Введите описание подписки")
+    await message.answer("Введите допустимое количество ссылок в сутки")
     await state.set_state(AddSubscribe.description)
 
 
@@ -156,12 +156,15 @@ async def add_name2(message: types.Message, state: FSMContext):
     )
 
 
-@admin_router.message(AddSubscribe.description,  or_f(F.text, F.text == "."))
+@admin_router.message(AddSubscribe.description, or_f(F.text, F.text == "."))
 async def add_description(message: types.Message, state: FSMContext):
     if message.text == ".":
         await state.update_data(description=AddSubscribe.subscribe_for_change.description)
     else:
-        await state.update_data(description=message.text)
+        if not message.text.isdigit():
+            await message.answer("Введите допустимое количество ссылок в сутки")
+            return
+        await state.update_data(description=int(message.text))
     await message.answer("Введите стоимость подписки")
     await state.set_state(AddSubscribe.price)
 
@@ -169,7 +172,7 @@ async def add_description(message: types.Message, state: FSMContext):
 @admin_router.message(AddSubscribe.description)
 async def add_description2(message: types.Message, state: FSMContext):
     await message.answer(
-        "Вы ввели не допустимые данные, введите текст описания подписки"
+        "Вы ввели не допустимые данные, введите допустимое количество ссылок в сутки"
     )
 
 
