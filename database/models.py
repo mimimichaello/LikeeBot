@@ -27,7 +27,8 @@ class MenuText(BaseSubscribe):
     __tablename__ = "menu_text"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(String(15), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
 
 
 class Category(BaseSubscribe):

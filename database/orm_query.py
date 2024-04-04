@@ -54,24 +54,27 @@ class Paginator:
 # Работа с MenuText (Информационными страницами)
 
 async def orm_add_menu_description(session: AsyncSession, data: dict):
+    #Добавляем новый или изменяем существующий по именам
+    #пунктов меню: main, about, cart, shipping, payment, catalog
     query = select(MenuText)
     result = await session.execute(query)
     if result.first():
         return
-    session.add_all([MenuText(text=text) for text in data])
+    session.add_all([MenuText(name=name, description=description) for name, description in data.items()])
     await session.commit()
 
 
-async def orm_change_menu_image(session: AsyncSession, text: str):
-    query = update(MenuText).where(MenuText.text == text)
+async def orm_change_menu(session: AsyncSession, description: str, name: str):
+    query = update(MenuText).where(MenuText.name == name).values(description=description)
     await session.execute(query)
     await session.commit()
 
 
 async def orm_get_menu(session: AsyncSession, page: str):
-    query = select(MenuText).where(MenuText.text == page)
+    query = select(MenuText).where(MenuText.name == page)
     result = await session.execute(query)
-    return result.scalar()
+    menu = result.scalar()
+    return menu
 
 
 async def orm_get_info_pages(session: AsyncSession):
