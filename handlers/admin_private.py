@@ -4,11 +4,15 @@ from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database.models import MenuText
 from database.orm_query import (
     orm_add_subscribe,
     orm_delete_subscribe,
+    orm_get_categories,
+    orm_get_info_pages,
     orm_get_subscribe,
     orm_get_subscriptions,
     orm_update_subscribe,
@@ -23,25 +27,11 @@ admin_router = Router()
 admin_router.message.filter(ChatTypeFilter(["private"]), IsAdmin())
 
 ADMIN_KB = get_keyboard(
-    "Добавить подпискy",
+    "Добавить подпискy | Акцию",
     "Список подписок",
     placeholder="Выберите действие",
     sizes=(2,),
 )
-
-
-class AddSubscribe(StatesGroup):
-    name = State()
-    description = State()
-    price = State()
-
-    subscribe_for_change = None
-
-    texts = {
-        "AddSubscribe:name": "Введите название заново",
-        "AddSubscribe:description": "Введите допустимое количество ссылок в сутки заново",
-        "AddSubscribe:price": "Введите стоимость заново",
-    }
 
 
 @admin_router.message(Command("admin"))
@@ -50,18 +40,30 @@ async def admin_features(message: types.Message):
 
 
 @admin_router.message(F.text == "Список подписок")
-async def starring_at_subscribe(message: types.Message, session: AsyncSession):
-    for subscribe in await orm_get_subscriptions(session):
-        await message.answer(
-            f"Название: <strong>{subscribe.name}</strong> \nДопустимое количество ссылок в сутки: {subscribe.description} \nСтоимость: {round(subscribe.price)}",
+async def admin_features(message: types.Message, session: AsyncSession):
+    categories = await orm_get_categories(session)
+    btns = {category.name: f"category_{category.id}" for category in categories}
+    await message.answer(
+        "Выберите категорию", reply_markup=get_callback_btns(btns=btns)
+    )
+
+
+@admin_router.callback_query(F.data.startswith('category_'))
+async def starring_at_subscribe(callback: types.CallbackQuery, session: AsyncSession):
+    category_id = callback.data.split('_')[-1]
+    for subscribe in await orm_get_subscriptions(session, int(category_id)):
+        await callback.message.answer(
+            f"Название: <strong>{subscribe.name}</strong> \nДопустимое количество ссылок в сутки: {subscribe.description} \nСтоимость: {round(subscribe.price, 2)}",
             reply_markup=get_callback_btns(
                 btns={
                     "Изменить ✏️": f"change_{subscribe.id}",
                     "Удалить ❌": f"delete_{subscribe.id}",
-                }
+                },
+                sizes=(2,)
             ),
         )
-    await message.answer("Ок, вот список подписок ⏫")
+    await callback.answer()
+    await callback.answer("Ок, вот список подписок ⏫")
 
 
 @admin_router.callback_query(F.data.startswith("delete_"))
@@ -69,8 +71,74 @@ async def delete_subscribe(callback: types.CallbackQuery, session: AsyncSession)
     subscribe_id = callback.data.split("_")[-1]
     await orm_delete_subscribe(session, int(subscribe_id))
 
-    await callback.answer("Подписка удалена!")
-    await callback.message.answer("Подписка удалена!")
+    await callback.answer("Подписка | Акция удалена!")
+    await callback.message.answer("Подписка | Акция удалена!")
+
+
+# FSM для загрузки/изменения меню
+
+
+# class AddMenu(StatesGroup):
+#     text = State()
+
+
+# Отправляем перечень информационных страниц бота и становимся в состояние отправки текста
+# @admin_router.message(StateFilter(None), F.text == "Добавить/Изменить меню")
+# async def add_text(message: types.Message, state: FSMContext, session: AsyncSession):
+#     pages_texts = [page.text for page in await orm_get_info_pages(session)]
+#     await message.answer(
+#         f"Введите текст меню.\nУкажите для какой страницы:\
+#                          \n{', '.join(pages_texts)}"
+#     )
+#     await state.set_state(AddMenu.text)
+
+
+# # Сохраняем текст баннера для указанной страницы
+# @admin_router.message(AddMenu.text)
+# async def save_menu_text(
+#     message: types.Message, state: FSMContext, session: AsyncSession
+# ):
+#     menu_text = message.text
+#     for_page = menu_text.split("\n")[-1].strip()
+#     pages_names = [
+#         page.name for page in await session.execute(select(MenuText)).scalars().all()
+#     ]
+
+#     if for_page not in pages_names:
+#         await message.answer(
+#             f"Введите корректное название страницы, например:\
+#                          \n{', '.join(pages_names)}"
+#         )
+#         return
+
+#     menu_text = MenuText(text=menu_text, name=for_page)
+#     session.add(menu_text)
+#     await session.commit()
+
+#     await message.answer("Текст баннера сохранен.")
+#     await state.finish()
+
+
+# ловим некоррекный ввод
+# @admin_router.message(AddMenu.text)
+# async def invalid_input(message: types.Message, state: FSMContext):
+#     await message.answer("Введите текст баннера или отмена")
+
+
+class AddSubscribe(StatesGroup):
+    name = State()
+    description = State()
+    category = State()
+    price = State()
+
+    subscribe_for_change = None
+
+    texts = {
+        "AddSubscribe:name": "Введите название заново",
+        "AddSubscribe:description": "Введите допустимое количество ссылок в сутки заново",
+        "AddProduct:category": "Выберите категорию  заново ⬆️",
+        "AddSubscribe:price": "Введите стоимость заново",
+    }
 
 
 @admin_router.callback_query(StateFilter(None), F.data.startswith("change_"))
@@ -83,7 +151,7 @@ async def change_subscribe_callback(
     AddSubscribe.subscribe_for_change = subscribe_for_change
     await callback.answer()
     await callback.message.answer(
-        "Введите название подписки", reply_markup=types.ReplyKeyboardRemove()
+        "Введите название подписки | Акции", reply_markup=types.ReplyKeyboardRemove()
     )
     await state.set_state(AddSubscribe.name)
 
@@ -91,10 +159,10 @@ async def change_subscribe_callback(
 # Машины состояний (FSM)
 
 
-@admin_router.message(StateFilter(None), F.text == "Добавить подпискy")
+@admin_router.message(StateFilter(None), F.text == "Добавить подпискy | Акцию")
 async def add_subscribe(message: types.Message, state: FSMContext):
     await message.answer(
-        "Введите название подписки", reply_markup=types.ReplyKeyboardRemove()
+        "Введите название подписки | Акции", reply_markup=types.ReplyKeyboardRemove()
     )
     await state.set_state(AddSubscribe.name)
 
@@ -137,7 +205,7 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
 
 @admin_router.message(AddSubscribe.name, or_f(F.text, F.text == "."))
 async def add_name(message: types.Message, state: FSMContext):
-    if message.text == ".":
+    if message.text == "." and AddSubscribe.subscribe_for_change:
         await state.update_data(name=AddSubscribe.subscribe_for_change.name)
     else:
         if len(message.text) >= 50:
@@ -157,16 +225,20 @@ async def add_name2(message: types.Message, state: FSMContext):
 
 
 @admin_router.message(AddSubscribe.description, or_f(F.text, F.text == "."))
-async def add_description(message: types.Message, state: FSMContext):
-    if message.text == ".":
-        await state.update_data(description=AddSubscribe.subscribe_for_change.description)
+async def add_description(message: types.Message, state: FSMContext, session: AsyncSession):
+    if message.text == "." and AddSubscribe.subscribe_for_change:
+        await state.update_data(
+            description=AddSubscribe.subscribe_for_change.description
+        )
     else:
         if not message.text.isdigit():
             await message.answer("Введите допустимое количество ссылок в сутки")
             return
         await state.update_data(description=int(message.text))
-    await message.answer("Введите стоимость подписки")
-    await state.set_state(AddSubscribe.price)
+    categories = await orm_get_categories(session)
+    btns = {category.name : str(category.id) for category in categories}
+    await message.answer("Выберите категорию", reply_markup=get_callback_btns(btns=btns))
+    await state.set_state(AddSubscribe.category)
 
 
 @admin_router.message(AddSubscribe.description)
@@ -176,9 +248,30 @@ async def add_description2(message: types.Message, state: FSMContext):
     )
 
 
+@admin_router.callback_query(AddSubscribe.category)
+async def category_choice(
+    callback: types.CallbackQuery, state: FSMContext, session: AsyncSession
+):
+    if int(callback.data) in [
+        category.id for category in await orm_get_categories(session)
+    ]:
+        await callback.answer()
+        await state.update_data(category=callback.data)
+        await callback.message.answer("Теперь введите цену.")
+        await state.set_state(AddSubscribe.price)
+    else:
+        await callback.message.answer("Выберите катеорию из кнопок.")
+        await callback.answer()
+
+
+@admin_router.message(AddSubscribe.category)
+async def category_choice2(message: types.Message, state: FSMContext):
+    await message.answer("'Выберите катеорию из кнопок.'")
+
+
 @admin_router.message(AddSubscribe.price, or_f(F.text, F.text == "."))
 async def add_price(message: types.Message, state: FSMContext, session: AsyncSession):
-    if message.text == ".":
+    if message.text == "." and AddSubscribe.subscribe_for_change:
         await state.update_data(price=AddSubscribe.subscribe_for_change.price)
     else:
         try:
@@ -188,19 +281,29 @@ async def add_price(message: types.Message, state: FSMContext, session: AsyncSes
             return
 
         await state.update_data(price=message.text)
+
+    # Добавляем category_id к данным перед сохранением/обновлением подписки
     data = await state.get_data()
+    if 'category' not in data:
+        await message.answer("Выберите категорию перед вводом цены.")
+        return
+
     try:
         if AddSubscribe.subscribe_for_change:
+            data['category_id'] = int(data.pop('category'))  # Извлекаем category и добавляем category_id
             await orm_update_subscribe(session, AddSubscribe.subscribe_for_change.id, data)
         else:
+            data['category_id'] = int(data.pop('category'))  # Извлекаем category и добавляем category_id
             await orm_add_subscribe(session, data)
-        await message.answer("Подписка добавлена | Изменена", reply_markup=ADMIN_KB)
+
+        await message.answer("Добавлено | Изменено", reply_markup=ADMIN_KB)
         await state.clear()
     except Exception as e:
         await message.answer(f"Ошибка: {str(e)}", reply_markup=ADMIN_KB)
         await state.clear()
 
     AddSubscribe.subscribe_for_change = None
+
 
 @admin_router.message(AddSubscribe.price)
 async def add_price2(message: types.Message, state: FSMContext):

@@ -2,7 +2,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from database.models import BaseSubscribe
+from database.orm_query import orm_add_menu_description, orm_create_categories
 
+from common.texts_for_db import categories, description_for_info_pages
 
 username = os.getenv("DB_USERNAME")
 password = os.getenv("DB_PASSWORD")
@@ -21,6 +23,10 @@ session_maker = async_sessionmaker(
 async def create_db():
     async with engine.begin() as conn:
         await conn.run_sync(BaseSubscribe.metadata.create_all)
+
+    async with session_maker() as session:
+        await orm_create_categories(session, categories)
+        await orm_add_menu_description(session, description_for_info_pages)
 
 
 async def drop_db():
