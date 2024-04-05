@@ -6,20 +6,43 @@ from handlers.menu_processing import get_menu_content
 from aiogram import types
 from aiogram.fsm.state import State
 from aiogram.fsm.context import FSMContext
-#from app import bot
+
+
+
+# from app import bot
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from keyboards.inline import MenuCallBack
 
 
 user_private_router = Router()
 user_private_router.message.filter(ChatTypeFilter(["private"]))
+
 
 @user_private_router.message(CommandStart())
 async def start_cmd(message: types.Message, session: AsyncSession):
     text, reply_markup = await get_menu_content(session, level=0, menu_name="main")
 
     await message.answer(text, reply_markup=reply_markup)
+
+
+@user_private_router.callback_query(MenuCallBack.filter())
+async def user_menu(
+    callback: types.CallbackQuery, callback_data: MenuCallBack, session: AsyncSession
+):
+
+    text, reply_markup = await get_menu_content(
+        session,
+        level=callback_data.level,
+        menu_name=callback_data.menu_name,
+        category=callback_data.category,
+        page=callback_data.page,
+    )
+
+    await callback.message.edit_text(text, reply_markup=reply_markup)
+    await callback.answer()
+
 
 
 
@@ -64,5 +87,3 @@ async def start_cmd(message: types.Message, session: AsyncSession):
 #         )
 
 #     await state.finish()
-
-

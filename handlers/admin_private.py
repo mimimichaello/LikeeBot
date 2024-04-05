@@ -66,7 +66,7 @@ async def starring_at_subscribe(callback: types.CallbackQuery, session: AsyncSes
             ),
         )
     await callback.answer()
-    await callback.answer("Ок, вот список подписок ⏫")
+    await callback.message.answer("Ок, вот список подписок ⏫")
 
 
 @admin_router.callback_query(F.data.startswith("delete_"))
