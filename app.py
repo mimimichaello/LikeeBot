@@ -23,9 +23,9 @@ bot.my_admins_list = []
 
 dp = Dispatcher()
 
+dp.include_router(admin_router)
 dp.include_router(user_private_router)
 dp.include_router(user_group_router)
-dp.include_router(admin_router)
 
 
 async def on_startup(bot):
@@ -40,18 +40,21 @@ async def on_shutdown(bot):
 
 
 async def main():
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
+    try:
+        dp.startup.register(on_startup)
+        dp.shutdown.register(on_shutdown)
 
-    dp.update.middleware(DataBaseSession(session_pool=session_maker))
+        dp.update.middleware(DataBaseSession(session_pool=session_maker))
 
-    await bot.delete_webhook(drop_pending_updates=True)
+        await bot.delete_webhook(drop_pending_updates=True)
 
-    # await bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
-    # await bot.set_my_commands(
-    #     commands=cmd_private, scope=types.BotCommandScopeAllPrivateChats()
-    # )
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        # await bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
+        # await bot.set_my_commands(
+        #     commands=cmd_private, scope=types.BotCommandScopeAllPrivateChats()
+        # )
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    except KeyboardInterrupt:
+        print("Exit")
 
 
 asyncio.run(main())
