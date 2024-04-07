@@ -40,24 +40,18 @@ def get_user_main_btns(*, level: int, sizes: tuple[int] = (3,)):
             keyboard.add(
                 InlineKeyboardButton(
                     text=text,
-                    callback_data=MenuCallBack(
-                        level=3, menu_name=menu_name
-                    ).pack(),
+                    callback_data=MenuCallBack(level=3, menu_name=menu_name).pack(),
                 )
             )
         elif menu_name == "active":
             keyboard.add(
                 InlineKeyboardButton(
-                    text=text,
-                    callback_data=MenuCallBack(
-                        level=level + 4, menu_name=menu_name
-                    ).pack(),
+                    text="Актив",
+                    callback_data="active",
                 )
             )
 
     return keyboard.adjust(*sizes).as_markup()
-
-
 
 
 def get_user_catalog_btns(*, level: int, categories: list, sizes: tuple[int] = (2,)):
@@ -73,12 +67,13 @@ def get_user_catalog_btns(*, level: int, categories: list, sizes: tuple[int] = (
         keyboard.add(
             InlineKeyboardButton(
                 text=c.name,
-                callback_data=MenuCallBack(level=level+1, menu_name=c.name, category=c.id).pack(),
+                callback_data=MenuCallBack(
+                    level=level + 1, menu_name=c.name, category=c.id
+                ).pack(),
             )
         )
 
     return keyboard.adjust(*sizes).as_markup()
-
 
 
 def get_subscriptions_btns(
@@ -92,33 +87,52 @@ def get_subscriptions_btns(
 ):
     keyboard = InlineKeyboardBuilder()
 
-    keyboard.add(InlineKeyboardButton(text='Назад',
-                callback_data=MenuCallBack(level=level-1, menu_name='catalog').pack()))
-    keyboard.add(InlineKeyboardButton(text='Купить 💵',
-                callback_data=MenuCallBack(level=level, menu_name='payment', subscribe_id=subscribe_id).pack()))
+    keyboard.add(
+        InlineKeyboardButton(
+            text="Назад",
+            callback_data=MenuCallBack(level=level - 1, menu_name="catalog").pack(),
+        )
+    )
+    keyboard.add(
+        InlineKeyboardButton(
+            text="Купить 💵",
+            callback_data=MenuCallBack(
+                level=level, menu_name="payment", subscribe_id=subscribe_id
+            ).pack(),
+        )
+    )
 
     keyboard.adjust(*sizes)
 
     row = []
     for text, menu_name in pagination_btns.items():
         if menu_name == "next":
-            row.append(InlineKeyboardButton(text=text,
+            row.append(
+                InlineKeyboardButton(
+                    text=text,
                     callback_data=MenuCallBack(
                         level=level,
                         menu_name=menu_name,
                         category=category,
-                        page=page + 1).pack()))
+                        page=page + 1,
+                    ).pack(),
+                )
+            )
 
         elif menu_name == "previous":
-            row.append(InlineKeyboardButton(text=text,
+            row.append(
+                InlineKeyboardButton(
+                    text=text,
                     callback_data=MenuCallBack(
                         level=level,
                         menu_name=menu_name,
                         category=category,
-                        page=page - 1).pack()))
+                        page=page - 1,
+                    ).pack(),
+                )
+            )
 
     return keyboard.row(*row).as_markup()
-
 
 
 def get_callback_btns(*, btns: dict[str, str], sizes: tuple[int] = (2,)):

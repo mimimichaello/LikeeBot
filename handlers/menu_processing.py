@@ -1,10 +1,16 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+﻿from datetime import datetime, timedelta
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 from database.orm_query import (
     Paginator,
     orm_get_categories,
     orm_get_menu,
     orm_get_subscriptions,
+    orm_get_user,
 )
 
 from keyboards.inline import (
@@ -51,7 +57,6 @@ async def subscriptions(session, level, category, page):
     paginator = Paginator(subscriptions, page=page)
     subscribe = paginator.get_page()[0]
 
-
     text = f"<strong>{subscribe.name}\
                 </strong>\nДопустимое количество ссылок в сутки: {subscribe.description}\nСтоимость: {round(subscribe.price, 2)}\n\
                 <strong>Подписка {paginator.page} из {paginator.pages}</strong>"
@@ -69,6 +74,9 @@ async def subscriptions(session, level, category, page):
     return text, kbds
 
 
+
+
+
 async def get_menu_content(
     session: AsyncSession,
     level: int,
@@ -82,3 +90,4 @@ async def get_menu_content(
         return await catalog(session, level, menu_name)
     elif level == 2:
         return await subscriptions(session, level, category, page)
+

@@ -1,10 +1,17 @@
 ﻿import math
-from sqlalchemy import select, update, delete
+import os
+from aiogram import Bot
+from sqlalchemy import func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from database.models import Subscribe, MenuText, User, Category
+from aiogram.enums import ParseMode
+
+from database.models import LinkUsage, Subscribe, MenuText, User, Category
+
+from dotenv import find_dotenv, load_dotenv
+
+load_dotenv(find_dotenv())
 
 
 # Пагинатор
@@ -53,19 +60,27 @@ class Paginator:
 
 # Работа с MenuText (Информационными страницами)
 
+
 async def orm_add_menu_description(session: AsyncSession, data: dict):
-    #Добавляем новый или изменяем существующий по именам
-    #пунктов меню: main, about, cart, shipping, payment, catalog
+    # Добавляем новый или изменяем существующий по именам
+    # пунктов меню: main, about, cart, shipping, payment, catalog
     query = select(MenuText)
     result = await session.execute(query)
     if result.first():
         return
-    session.add_all([MenuText(name=name, description=description) for name, description in data.items()])
+    session.add_all(
+        [
+            MenuText(name=name, description=description)
+            for name, description in data.items()
+        ]
+    )
     await session.commit()
 
 
 async def orm_change_menu(session: AsyncSession, description: str, name: str):
-    query = update(MenuText).where(MenuText.name == name).values(description=description)
+    query = (
+        update(MenuText).where(MenuText.name == name).values(description=description)
+    )
     await session.execute(query)
     await session.commit()
 
@@ -82,12 +97,15 @@ async def orm_get_info_pages(session: AsyncSession):
     result = await session.execute(query)
     return result.scalars().all()
 
+
 # Категории
+
 
 async def orm_get_categories(session: AsyncSession):
     query = select(Category)
     result = await session.execute(query)
     return result.scalars().all()
+
 
 async def orm_create_categories(session: AsyncSession, categories: list):
     query = select(Category)
@@ -96,6 +114,7 @@ async def orm_create_categories(session: AsyncSession, categories: list):
         return
     session.add_all([Category(name=name) for name in categories])
     await session.commit()
+
 
 # Админка: Добавить/Изменить/Удалить подписку
 
@@ -144,13 +163,22 @@ async def orm_delete_subscribe(session: AsyncSession, subscribe_id: int):
     await session.commit()
 
 
-# Добавление юзера в БД
+# user
+
+
+async def orm_get_user(session: AsyncSession, user_id: int) -> User:
+    query = select(User).where(User.id == user_id)
+    result = await session.execute(query)
+    return result.scalar()
+
 
 async def orm_add_user(
-        session: AsyncSession,
-        user_id: int,
-        current_subscription_id: int | None = None,
-        subscription_end_date: datetime | None = None,
+    session: AsyncSession,
+    user_id: int,
+    username: str,
+    current_subscription_id: int | None = None,
+    subscription_end_date: datetime | None = None,
+    links_sent: datetime | None = None,
 ):
     query = select(User).where(User.id == user_id)
     result = await session.execute(query)
@@ -158,8 +186,64 @@ async def orm_add_user(
         session.add(
             User(
                 id=user_id,
+                username=username,
                 current_subscription_id=current_subscription_id,
                 subscription_end_date=subscription_end_date,
+                links_sent=links_sent,
             )
         )
         await session.commit()
+
+
+async def orm_update_link_sent(session: AsyncSession, user_id: int, new_date: datetime):
+    query = update(User).where(User.id == user_id).values(link_sent=new_date)
+    await session.execute(query)
+    await session.commit()
+
+
+async def get_user_subscription(session: AsyncSession, user_id: int):
+    user = await orm_get_user(session, user_id)
+    if user:
+        return user.current_subscription
+    else:
+        return None
+
+
+async def get_links_sent_count(
+    session: AsyncSession, user_id: int, time_period: timedelta
+) -> int:
+    start_date = datetime.now() - time_period
+
+    query = select(func.sum(LinkUsage.links_sent)).where(
+        (LinkUsage.user_id == user_id) & (LinkUsage.created >= start_date)
+    )
+
+    result = await session.execute(query)
+    count = result.scalar()
+
+    return count if count else 0
+
+
+async def send_to_private_channel(user_id: int, message: str):
+    # Здесь вы должны использовать токен вашего бота и ID вашего закрытого канала
+    bot = Bot(token=os.getenv("TOKEN"))
+    channel_id = os.getenv("CHANNEL_ID")
+    await bot.send_message(chat_id=channel_id, text=message, parse_mode=ParseMode.HTML)
+
+
+async def orm_increment_links_sent(session: AsyncSession, user_id: int):
+    user = await orm_get_user(session, user_id)
+    if user:
+        user.links_sent += 1
+        await session.commit()
+
+
+async def orm_add_links_sent(session: AsyncSession, user_id: int):
+    user = await orm_get_user(session, user_id)
+    if not user:
+        await orm_add_user(
+            session, user_id, username="username"
+        )  # Предположим, что у вас есть функция для добавления пользователя
+        user = await orm_get_user(session, user_id)
+
+    await orm_increment_links_sent(session, user_id)
