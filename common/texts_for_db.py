@@ -6,10 +6,10 @@ categories = ['Подписки', "Акции"]
 
 description_for_info_pages = {
     "main": "Добро пожаловать!",
-    "payment": as_marked_section(
-        Bold("Варианты оплаты:"),
-        "Картой в боте",
-        marker="✅ ",).as_html(),
+    # "payment": as_marked_section(
+    #     Bold("Варианты оплаты:"),
+    #     "Картой в боте",
+    #     marker="✅ ",).as_html(),
     'catalog': 'Категории:',
     "active": "Актив",
 }

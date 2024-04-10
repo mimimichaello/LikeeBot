@@ -9,11 +9,13 @@ from database.orm_query import (
     Paginator,
     orm_get_categories,
     orm_get_menu,
+    orm_get_subscribe,
     orm_get_subscriptions,
     orm_get_user,
 )
 
 from keyboards.inline import (
+    get_payment_btns,
     get_subscriptions_btns,
     get_user_main_btns,
     get_user_catalog_btns,
@@ -40,6 +42,16 @@ async def catalog(session, level, menu_name):
     return text, kbds
 
 
+async def payment_btns(session, level, subscribe_id):
+    subscribe = await orm_get_subscribe(session, subscribe_id)
+    categories = await orm_get_categories(session)
+    text = f"Хотите оплатить:\nНазвание: {subscribe.name}\nОписание: {subscribe.description}\nСтоимость: {subscribe.price}"
+
+    kbds = get_payment_btns(level=level, subscribe_id=subscribe_id, categories=categories)
+
+    return text, kbds
+
+
 def pages(paginator: Paginator):
     btns = dict()
     if paginator.has_previous():
@@ -49,6 +61,7 @@ def pages(paginator: Paginator):
         btns["След. ▶"] = "next"
 
     return btns
+
 
 
 async def subscriptions(session, level, category, page):
@@ -74,14 +87,12 @@ async def subscriptions(session, level, category, page):
     return text, kbds
 
 
-
-
-
 async def get_menu_content(
     session: AsyncSession,
     level: int,
     menu_name: str,
     category: int | None = None,
+    subscribe_id: int | None = None,
     page: int | None = None,
 ):
     if level == 0:
@@ -90,4 +101,3 @@ async def get_menu_content(
         return await catalog(session, level, menu_name)
     elif level == 2:
         return await subscriptions(session, level, category, page)
-

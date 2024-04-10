@@ -130,8 +130,12 @@ async def orm_add_subscribe(session: AsyncSession, data: dict):
     await session.commit()
 
 
-async def orm_get_subscriptions(session: AsyncSession, category_id):
-    query = select(Subscribe).where(Subscribe.category_id == int(category_id))
+async def orm_get_subscriptions(session: AsyncSession, category_id=None):
+    if category_id is not None:
+        query = select(Subscribe).where(Subscribe.category_id == int(category_id))
+    else:
+        query = select(Subscribe)
+
     result = await session.execute(query)
     return result.scalars().all()
 
@@ -225,7 +229,6 @@ async def get_links_sent_count(
 
 
 async def send_to_private_channel(user_id: int, message: str):
-    # Здесь вы должны использовать токен вашего бота и ID вашего закрытого канала
     bot = Bot(token=os.getenv("TOKEN"))
     channel_id = os.getenv("CHANNEL_ID")
     await bot.send_message(chat_id=channel_id, text=message, parse_mode=ParseMode.HTML)
@@ -241,9 +244,65 @@ async def orm_increment_links_sent(session: AsyncSession, user_id: int):
 async def orm_add_links_sent(session: AsyncSession, user_id: int):
     user = await orm_get_user(session, user_id)
     if not user:
-        await orm_add_user(
-            session, user_id, username="username"
-        )  # Предположим, что у вас есть функция для добавления пользователя
+        await orm_add_user(session, user_id, username="username")
         user = await orm_get_user(session, user_id)
 
     await orm_increment_links_sent(session, user_id)
+
+
+async def invoice(
+    user_id: int,
+    subscription_name: str,
+    subscription_description: str,
+    subscription_price: float,
+):
+    bot = Bot(token=os.getenv("TOKEN"))
+    await bot.send_invoice(
+        chat_id=user_id,
+        title="Оплата",
+        description=f"{subscription_name} - {str(subscription_description)} ссылки в сутки",
+        payload="month_sub",
+        provider_token=os.getenv("PAYMENTS_TOKEN"),
+        currency="RUB",
+        start_parameter="payment",
+        prices=[{"label": "Руб", "amount": int(subscription_price * 100)}],
+    )
+
+
+async def pre_checkout(pre_checkout_query):
+    bot = Bot(token=os.getenv("TOKEN"))
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+
+async def send_invoice_and_update_db(
+    user_id: int,
+    subscription_name: str,
+    subscription_description: str,
+    subscription_price: float,
+    session: AsyncSession,
+):
+    try:
+        # Отправляем счет пользователю
+        await invoice(
+            user_id, subscription_name, subscription_description, subscription_price
+        )
+
+        # Получаем пользователя или добавляем нового пользователя
+        await orm_add_user(session, user_id, user_id, subscription_name)
+
+        # Обновляем информацию о текущей подписке пользователя
+        await orm_update_subscribe(
+            session,
+            user_id,
+            {
+                "name": subscription_name,
+                "description": subscription_description,
+                "price": subscription_price,
+            },
+        )
+
+        await session.commit()
+
+    except Exception as e:
+        print(f"Ошибка при обновлении базы данных: {e}")
+        await session.rollback()
