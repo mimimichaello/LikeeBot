@@ -1,4 +1,5 @@
 ﻿import datetime
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -57,6 +58,7 @@ class Subscribe(BaseSubscribe):
     category: Mapped["Category"] = relationship("Category", backref="subscriptions")
 
 
+
 class User(BaseSubscribe):
     __tablename__ = "user"
 
@@ -71,9 +73,9 @@ class User(BaseSubscribe):
     subscription_end_date: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
     link_sent: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
     links_sent: Mapped[int] = mapped_column(Integer, default=0)
+    daily_link_limit: Mapped[int] = mapped_column(Integer, default=1)
 
     current_subscription: Mapped["Subscribe"] = relationship("Subscribe", uselist=False)
-
 
 
 

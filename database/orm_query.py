@@ -142,6 +142,8 @@ async def orm_get_subscribe(session: AsyncSession, subscribe_id: int):
     return result.scalar()
 
 
+
+
 async def orm_update_subscribe(session: AsyncSession, subscribe_id: int, data):
     query = (
         update(Subscribe)
@@ -178,7 +180,9 @@ async def orm_add_user(
     username: str,
     current_subscription_id: int | None = None,
     subscription_end_date: datetime | None = None,
-    links_sent: datetime | None = None,
+    link_sent: datetime | None = None,
+    links_sent: int = 0,
+    daily_link_limit: int = None,
 ):
     query = select(User).where(User.id == user_id)
     result = await session.execute(query)
@@ -189,7 +193,9 @@ async def orm_add_user(
                 username=username,
                 current_subscription_id=current_subscription_id,
                 subscription_end_date=subscription_end_date,
+                link_sent=link_sent,
                 links_sent=links_sent,
+                daily_link_limit=daily_link_limit,
             )
         )
         await session.commit()
@@ -204,14 +210,14 @@ async def orm_update_link_sent(session: AsyncSession, user_id: int, new_date: da
 async def get_user_subscription(session: AsyncSession, user_id: int):
     user = await orm_get_user(session, user_id)
     if user:
-        return user.current_subscription
+        return user.current_subscription_id
     else:
         return None
 
 
 async def get_links_sent_count(
     session: AsyncSession, user_id: int, time_period: timedelta
-) -> int:
+):
     start_date = datetime.now() - time_period
 
     query = select(func.sum(LinkUsage.links_sent)).where(
@@ -247,3 +253,107 @@ async def orm_add_links_sent(session: AsyncSession, user_id: int):
         user = await orm_get_user(session, user_id)
 
     await orm_increment_links_sent(session, user_id)
+    await session.commit()
+
+
+async def check_link_limit(session: AsyncSession, user_id: int, max_links_per_day: int):
+    links_sent_today = await get_links_sent_count(session, user_id, timedelta(days=1))
+    if links_sent_today >= max_links_per_day:
+        return False
+    return True
+
+
+# Payment
+
+
+async def invoice(
+    user_id: int,
+    subscription_name: str,
+    subscription_description: str,
+    subscription_price: float,
+):
+    bot = Bot(token=os.getenv("TOKEN"))
+    try:
+        await bot.send_invoice(
+            chat_id=user_id,
+            title=f"{subscription_name}",
+            description=f"{subscription_description}",
+            payload="month_subscription",
+            provider_token=os.getenv("PAYMENTS_TOKEN"),
+            currency="RUB",
+            start_parameter="payment",
+            prices=[{"label": "Руб", "amount": int(subscription_price * 100)}],
+        )
+        return True  # Вернем True, если инвойс был успешно отправлен
+    except Exception as e:
+        logging.error(f"Ошибка при отправке инвойса: {e}")
+        return False
+
+
+async def pre_checkout(pre_checkout_query):
+    bot = Bot(token=os.getenv("TOKEN"))
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+
+import logging
+
+async def update_user_subscription(
+    session: AsyncSession, user_id: int, subscribe_id: int
+):
+    # Логирование начала выполнения функции
+    logging.info(f"Updating subscription for user {user_id} with subscription {subscribe_id}")
+
+    # Получение данных пользователя и подписки
+    user = await orm_get_user(session, user_id)
+    subscribe = await orm_get_subscribe(session, subscribe_id)
+
+    # Проверка, что пользователь существует
+    if user:
+        user.subscription_end_date = datetime.now() + timedelta(days=30)
+        user.daily_link_limit = subscribe.description
+
+        # Логирование обновленных данных пользователя
+        logging.info(f"Updated user {user_id} subscription to {subscribe_id}")
+
+        # Сохранение изменений в базе данных
+        await session.commit()
+
+        # Логирование успешного завершения обновления подписки
+        logging.info("Subscription update successful")
+    else:
+        # Логирование, если пользователь не найден
+        logging.warning(f"User {user_id} not found")
+
+
+async def update_user_sub_id(
+    session: AsyncSession, user_id: int, subscribe_id: int
+):
+    user = await orm_get_user(session, user_id)
+
+    if user:
+        user.current_subscription_id = subscribe_id
+        await session.commit()
+    else:
+        # Логирование, если пользователь не найден
+        logging.warning(f"User {user_id} not found")
+
+
+async def mark_subscription_message_sent(user_id: int, session: AsyncSession):
+    user = await orm_get_user(session, user_id)
+    if user:
+        user.link_sent = datetime.now()
+        await session.commit()
+
+async def is_subscription_message_sent(user_id: int, session: AsyncSession) -> bool:
+    user = await orm_get_user(session, user_id)
+    if user and user.link_sent:
+        return True
+    return False
+
+async def rollback_user_subscription(session: AsyncSession, user_id: int):
+    user = await orm_get_user(session, user_id)
+    if user:
+        user.current_subscription_id = None
+        user.subscription_end_date = None
+        user.daily_link_limit = None
+        await session.commit()

@@ -20,7 +20,6 @@ def get_user_main_btns(*, level: int, sizes: tuple[int] = (3,)):
         "Правила 📕": "https://telegra.ph/Pravila-LikeeUp-03-29",
         "FAQ ❔": "https://telegra.ph/FAQ-LikeeUp-03-30",
         "Актив 🔗": "active",
-        "Оплата 💰": "payment",
         "Подписки | Акции 📈": "catalog",
     }
     for text, menu_name in btns.items():
@@ -40,7 +39,7 @@ def get_user_main_btns(*, level: int, sizes: tuple[int] = (3,)):
             keyboard.add(
                 InlineKeyboardButton(
                     text=text,
-                    callback_data=MenuCallBack(level=3, menu_name=menu_name).pack(),
+                    callback_data=MenuCallBack(level=level, menu_name=menu_name).pack(),
                 )
             )
         elif menu_name == "active":
@@ -82,7 +81,7 @@ def get_subscriptions_btns(
     category: int,
     page: int,
     pagination_btns: dict,
-    subscribe_id: int,
+    subscribe_id: int | None = None,
     sizes: tuple[int] = (2, 1)
 ):
     keyboard = InlineKeyboardBuilder()
@@ -94,14 +93,15 @@ def get_subscriptions_btns(
         )
     )
     keyboard.add(
-        InlineKeyboardButton(
-            text="Купить 💵",
-            callback_data=MenuCallBack(
-                level=level, menu_name="payment", subscribe_id=subscribe_id
-            ).pack(),
-        )
+    InlineKeyboardButton(
+        text="Купить 💵",
+        callback_data=MenuCallBack(
+            level=level,
+            menu_name="payment",
+            subscribe_id=subscribe_id,
+        ).pack(),
     )
-
+)
     keyboard.adjust(*sizes)
 
     row = []
@@ -132,6 +132,25 @@ def get_subscriptions_btns(
                 )
             )
 
+    return keyboard.row(*row).as_markup()
+
+
+def get_payment_btns(
+    *,
+    level: int,
+    page: int | None,
+    pagination_btns: dict | None,
+    subscribe_id: int | None,
+    sizes: tuple[int] = (3,)
+):
+    keyboard = InlineKeyboardBuilder()
+
+    row = [
+        InlineKeyboardButton(text='Отмена ❌',
+                    callback_data=MenuCallBack(level=0, menu_name='cancel').pack()),
+        InlineKeyboardButton(text='Подтвердить ✅',
+                    callback_data=MenuCallBack(level=0, menu_name='confirm').pack()),
+        ]
     return keyboard.row(*row).as_markup()
 
 

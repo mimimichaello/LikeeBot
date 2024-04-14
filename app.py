@@ -3,6 +3,8 @@ import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 
+import logging
+
 from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
@@ -12,9 +14,10 @@ from middlewares.db import DataBaseSession
 from database.engine import create_db, drop_db, session_maker
 
 
+from handlers.admin_private import admin_router
 from handlers.user_private import user_private_router
 from handlers.user_group import user_group_router
-from handlers.admin_private import admin_router
+
 
 
 bot = Bot(token=os.getenv("TOKEN"), parse_mode=ParseMode.HTML)
@@ -27,7 +30,7 @@ dp.include_router(admin_router)
 dp.include_router(user_private_router)
 dp.include_router(user_group_router)
 
-
+logging.basicConfig(filename='app.log', level=logging.DEBUG)
 async def on_startup(bot):
 
     #await drop_db()
