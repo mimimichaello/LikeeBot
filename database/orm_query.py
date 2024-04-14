@@ -235,6 +235,8 @@ async def send_to_private_channel(user_id: int, message: str):
     bot = Bot(token=os.getenv("TOKEN"))
     channel_id = os.getenv("CHANNEL_ID")
     await bot.send_message(chat_id=channel_id, text=message, parse_mode=ParseMode.HTML)
+    logging.info(f"Сообщение отправлено в закрытый канал: {message}")
+
 
 
 async def orm_increment_links_sent(session: AsyncSession, user_id: int):
@@ -307,22 +309,12 @@ async def update_user_subscription(
     user = await orm_get_user(session, user_id)
     subscribe = await orm_get_subscribe(session, subscribe_id)
 
-    # Проверка, что пользователь существует
     if user:
         user.subscription_end_date = datetime.now() + timedelta(days=30)
         user.daily_link_limit = subscribe.description
 
-        # Логирование обновленных данных пользователя
-        logging.info(f"Updated user {user_id} subscription to {subscribe_id}")
-
-        # Сохранение изменений в базе данных
         await session.commit()
 
-        # Логирование успешного завершения обновления подписки
-        logging.info("Subscription update successful")
-    else:
-        # Логирование, если пользователь не найден
-        logging.warning(f"User {user_id} not found")
 
 
 async def update_user_sub_id(
@@ -333,27 +325,8 @@ async def update_user_sub_id(
     if user:
         user.current_subscription_id = subscribe_id
         await session.commit()
-    else:
-        # Логирование, если пользователь не найден
-        logging.warning(f"User {user_id} not found")
 
 
-async def mark_subscription_message_sent(user_id: int, session: AsyncSession):
-    user = await orm_get_user(session, user_id)
-    if user:
-        user.link_sent = datetime.now()
-        await session.commit()
 
-async def is_subscription_message_sent(user_id: int, session: AsyncSession) -> bool:
-    user = await orm_get_user(session, user_id)
-    if user and user.link_sent:
-        return True
-    return False
 
-async def rollback_user_subscription(session: AsyncSession, user_id: int):
-    user = await orm_get_user(session, user_id)
-    if user:
-        user.current_subscription_id = None
-        user.subscription_end_date = None
-        user.daily_link_limit = None
-        await session.commit()
+

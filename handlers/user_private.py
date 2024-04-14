@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from keyboards.get_keyboard import get_keyboard
 
-from keyboards.inline import MenuCallBack, get_subscriptions_btns
+from keyboards.inline import MenuCallBack
 
 
 user_private_router = Router()
@@ -73,12 +73,72 @@ async def user_menu(
     await callback.answer()
 
 
+
+@user_private_router.callback_query(F.data == "active")
+async def active_button(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(
+        "Пожалуйста, прикрепите ссылку, которую хотите отправить."
+    )
+
+
+@user_private_router.message()
+async def process_link(message: types.Message, session: AsyncSession):
+    user_id = message.from_user.id
+    text = message.text
+
+    # Проверяем, что сообщение содержит текст и начинается с "http" или "www."
+    if text and (text.startswith("http") or text.startswith("www.")):
+        await send_link(message, session)
+    else:
+        await process_successful_payment(message, session)
+
+
+
+@user_private_router.message()
+async def send_link(message: types.Message, session: AsyncSession):
+    user_id = message.from_user.id
+    username = message.from_user.username
+
+    user = await orm_get_user(session, user_id)
+    if not user:
+        await orm_add_user(session, user_id, username=username)
+    else:
+        user = await orm_get_user(session, user_id)
+
+    links_sent_today = user.links_sent
+
+    # Проверяем, сколько пользователь уже отправил ссылок сегодня
+
+    if links_sent_today >= user.daily_link_limit:
+        await message.answer("Вы исчерпали лимит ссылок на сегодня. Попробуйте через 24 часа.")
+        return
+
+    else:
+        # Отправляем ссылку в закрытый ТГ канал
+        await send_to_private_channel(
+            user_id,
+            f"<strong>Имя пользователя(username):</strong> {username}\n<strong>Ссылка:</strong> {message.text}",
+        )
+
+        # Если все проверки пройдены, обновляем информацию о пользователе и использовании ссылок
+        new_date = datetime.now()
+        await orm_update_link_sent(session, user_id, new_date)
+
+        count = await get_links_sent_count(session, user_id, timedelta(days=1))
+        if count:
+            await orm_increment_links_sent(session, user_id)
+        else:
+            await orm_add_links_sent(session, user_id)
+
+        await message.answer("Ссылка успешно отправлена в телеграм-канал.")
+
+
 async def buy_subscription(
     callback: types.CallbackQuery, callback_data: MenuCallBack, session: AsyncSession
 ):
     subscribe_id = callback_data.subscribe_id
     subscription = await orm_get_subscribe(session, subscribe_id=subscribe_id)
-
 
     user_id = callback.from_user.id
     username = callback.from_user.username
@@ -98,79 +158,16 @@ async def buy_subscription(
     await update_user_sub_id(session, user_id, subscribe_id)
 
 
-
 @user_private_router.pre_checkout_query()
 async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery):
     await pre_checkout(pre_checkout_query)
 
 @user_private_router.message()
 async def process_successful_payment(message: types.Message, session: AsyncSession):
-    if message.successful_payment.invoice_payload == "month_subscription":
+    if message.successful_payment and message.successful_payment.invoice_payload == "month_subscription":
         await message.answer("Подписка оформлена")
         user_id = message.from_user.id
         user = await orm_get_user(session, user_id)
         subscribe_id = user.current_subscription_id
         await update_user_subscription(session, user_id, subscribe_id)
-
-
-@user_private_router.callback_query(F.data == "active")
-async def active_button(callback: types.CallbackQuery):
-    await callback.answer()
-    await callback.message.answer(
-        "Пожалуйста, прикрепите ссылку, которую хотите отправить."
-    )
-
-@user_private_router.message()
-async def process_link(message: types.Message, session: AsyncSession):
-
-    text = message.text
-
-    if text.startswith("http") or text.startswith("www."):
-        await send_link(message, session)
-    else:
-        await message.answer("Вы не отправили ссылку. Пожалуйста, прикрепите ссылку.")
-
-@user_private_router.message()
-async def send_link(message: types.Message, session: AsyncSession):
-    user_id = message.from_user.id
-    username = message.from_user.username
-
-    try:
-        user = await orm_get_user(session, user_id)
-        print(user.username)
-
-        # Если пользователя нет в базе данных, добавляем его
-        if not user:
-            await orm_add_user(session, user_id, username=username)
-            user = await orm_get_user(session, user_id)
-
-        # Проверяем, сколько пользователь уже отправил ссылок сегодня
-        links_sent_today = await get_links_sent_count(session, user_id, timedelta(days=1))
-        if links_sent_today == user.daily_link_limit:
-            await message.answer(
-                "Вы исчерпали лимит ссылок на сегодня."
-            )
-            return
-
-        # Отправляем ссылку в закрытый ТГ канал
-        await send_to_private_channel(
-            user_id,
-            f"<strong>Имя пользователя(username):</strong> {username}\n<strong>Ссылка:</strong> {message.text}",
-        )
-
-        # Если все проверки пройдены, обновляем информацию о пользователе и использовании ссылок
-        new_date = datetime.now()
-        await orm_update_link_sent(session, user_id, new_date)
-
-        count = await get_links_sent_count(session, user_id, timedelta(days=1))
-        if count:
-            await orm_increment_links_sent(session, user_id)
-        else:
-            await orm_add_links_sent(session, user_id)
-
-        await message.answer("Ссылка успешно отправлена в телеграм-канал.")
-
-    except Exception as e:
-        # Обработка ошибок и логирование
-        logging.error(f"Произошла ошибка при отправке ссылки: {e}")
-        await message.answer("Произошла ошибка при отправке ссылки. Пожалуйста, попробуйте еще раз позже.")
+        return
