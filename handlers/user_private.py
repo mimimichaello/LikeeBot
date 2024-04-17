@@ -125,7 +125,7 @@ async def send_link(message: types.Message, session: AsyncSession):
 
     # Если у пользователя есть подписка, проверяем его ежедневный лимит
     if user.links_sent >= user.daily_link_limit:
-        if user.link_sent and user.link_sent + timedelta(seconds=20) <= datetime.now():
+        if user.link_sent and user.link_sent + timedelta(days=1) <= datetime.now():
             # Если прошло, сбрасываем счетчик отправленных ссылок
             user.links_sent = 0
             await session.commit()

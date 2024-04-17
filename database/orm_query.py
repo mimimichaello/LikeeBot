@@ -318,7 +318,7 @@ async def update_user_subscription(
     subscribe = await orm_get_subscribe(session, subscribe_id)
 
     if user:
-        user.subscription_end_date = datetime.now() + timedelta(minutes=1)
+        user.subscription_end_date = datetime.now() + timedelta(days=30)
         user.daily_link_limit = subscribe.description
 
         await session.commit()
