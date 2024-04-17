@@ -16,6 +16,7 @@ from database.orm_query import (
     orm_increment_links_sent,
     orm_update_link_sent,
     pre_checkout,
+    reset_sub,
     send_to_private_channel,
     update_user_sub_id,
     update_user_subscription,
@@ -87,7 +88,7 @@ async def process_link(message: types.Message, session: AsyncSession):
     user_id = message.from_user.id
     text = message.text
 
-    # Проверяем, что сообщение содержит текст и начинается с "http" или "www."
+
     if text and (text.startswith("http") or text.startswith("www.")):
         await send_link(message, session)
     else:
@@ -103,35 +104,52 @@ async def send_link(message: types.Message, session: AsyncSession):
     user = await orm_get_user(session, user_id)
     if not user:
         await orm_add_user(session, user_id, username=username)
+        user = await orm_get_user(session, user_id)  # Обновляем данные пользователя после добавления
     else:
         user = await orm_get_user(session, user_id)
 
-    links_sent_today = user.links_sent
+    # Если у пользователя нет активной подписки, проверяем, отправлял ли он уже ссылку сегодня
+    if not user.current_subscription_id:
+        # Проверяем, отправлял ли пользователь ссылку сегодня
+        if user.link_sent and user.link_sent >= datetime.now() - timedelta(days=1):
+            await message.answer("Вы уже отправили ссылку сегодня. Попробуйте через 24 часа.")
+            return
+        else:
+            await send_to_private_channel(
+                user_id,
+                f"<strong>Имя пользователя(username):</strong> {username}\n<strong>Ссылка:</strong> {message.text}",
+            )
+            await orm_update_link_sent(session, user_id, datetime.now())
+            await message.answer("Ссылка успешно отправлена в телеграм-канал.")
+            return
 
-    # Проверяем, сколько пользователь уже отправил ссылок сегодня
-
-    if links_sent_today >= user.daily_link_limit:
+    # Если у пользователя есть подписка, проверяем его ежедневный лимит
+    if user.links_sent >= user.daily_link_limit:
+        if user.link_sent and user.link_sent + timedelta(seconds=20) <= datetime.now():
+            # Если прошло, сбрасываем счетчик отправленных ссылок
+            user.links_sent = 0
+            await session.commit()
         await message.answer("Вы исчерпали лимит ссылок на сегодня. Попробуйте через 24 часа.")
         return
+    if user.subscription_end_date <= datetime.now():
+        await reset_sub(session, user_id)
 
-    else:
-        # Отправляем ссылку в закрытый ТГ канал
-        await send_to_private_channel(
-            user_id,
-            f"<strong>Имя пользователя(username):</strong> {username}\n<strong>Ссылка:</strong> {message.text}",
-        )
+        today = datetime.now().date()
+        if user.link_sent >= datetime.now() - timedelta(days=1):
+            await message.answer("Вы уже отправили ссылку сегодня. Попробуйте через 24 часа.")
+            return
+    await send_to_private_channel(
+        user_id,
+        f"<strong>Имя пользователя(username):</strong> {username}\n<strong>Ссылка:</strong> {message.text}",
+    )
 
-        # Если все проверки пройдены, обновляем информацию о пользователе и использовании ссылок
-        new_date = datetime.now()
-        await orm_update_link_sent(session, user_id, new_date)
+    # Обновляем информацию о последней отправленной ссылке
+    await orm_update_link_sent(session, user_id, datetime.now())
 
-        count = await get_links_sent_count(session, user_id, timedelta(days=1))
-        if count:
-            await orm_increment_links_sent(session, user_id)
-        else:
-            await orm_add_links_sent(session, user_id)
+    # Увеличиваем счетчик отправленных ссылок пользователя
+    await orm_increment_links_sent(session, user_id)
 
-        await message.answer("Ссылка успешно отправлена в телеграм-канал.")
+    await message.answer("Ссылка успешно отправлена в телеграм-канал.")
 
 
 async def buy_subscription(

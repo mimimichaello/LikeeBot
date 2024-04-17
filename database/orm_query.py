@@ -207,6 +207,8 @@ async def orm_update_link_sent(session: AsyncSession, user_id: int, new_date: da
     await session.commit()
 
 
+
+
 async def get_user_subscription(session: AsyncSession, user_id: int):
     user = await orm_get_user(session, user_id)
     if user:
@@ -231,11 +233,11 @@ async def get_links_sent_count(
 
 
 async def send_to_private_channel(user_id: int, message: str):
-    # Здесь вы должны использовать токен вашего бота и ID вашего закрытого канала
     bot = Bot(token=os.getenv("TOKEN"))
     channel_id = os.getenv("CHANNEL_ID")
     await bot.send_message(chat_id=channel_id, text=message, parse_mode=ParseMode.HTML)
-    logging.info(f"Сообщение отправлено в закрытый канал: {message}")
+
+
 
 
 
@@ -251,7 +253,7 @@ async def orm_add_links_sent(session: AsyncSession, user_id: int):
     if not user:
         await orm_add_user(
             session, user_id, username="username"
-        )  # Предположим, что у вас есть функция для добавления пользователя
+        )
         user = await orm_get_user(session, user_id)
 
     await orm_increment_links_sent(session, user_id)
@@ -263,6 +265,16 @@ async def check_link_limit(session: AsyncSession, user_id: int, max_links_per_da
     if links_sent_today >= max_links_per_day:
         return False
     return True
+
+
+async def reset_sub(session: AsyncSession, user_id: int):
+    user = await orm_get_user(session, user_id)
+    if user:
+        user.current_subscription_id = None
+        user.subscription_end_date = None
+        user.daily_link_limit = 1
+        user.links_sent = 0
+        await session.commit()
 
 
 # Payment
@@ -286,9 +298,8 @@ async def invoice(
             start_parameter="payment",
             prices=[{"label": "Руб", "amount": int(subscription_price * 100)}],
         )
-        return True  # Вернем True, если инвойс был успешно отправлен
+        return True
     except Exception as e:
-        logging.error(f"Ошибка при отправке инвойса: {e}")
         return False
 
 
@@ -297,20 +308,17 @@ async def pre_checkout(pre_checkout_query):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 
-import logging
+
 
 async def update_user_subscription(
     session: AsyncSession, user_id: int, subscribe_id: int
 ):
-    # Логирование начала выполнения функции
-    logging.info(f"Updating subscription for user {user_id} with subscription {subscribe_id}")
 
-    # Получение данных пользователя и подписки
     user = await orm_get_user(session, user_id)
     subscribe = await orm_get_subscribe(session, subscribe_id)
 
     if user:
-        user.subscription_end_date = datetime.now() + timedelta(days=30)
+        user.subscription_end_date = datetime.now() + timedelta(minutes=1)
         user.daily_link_limit = subscribe.description
 
         await session.commit()

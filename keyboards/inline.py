@@ -15,12 +15,13 @@ def get_user_main_btns(*, level: int, sizes: tuple[int] = (3,)):
     keyboard = InlineKeyboardBuilder()
 
     btns = {
-        "Навигация 🗿": "https://telegra.ph/Navigaciya-v-LikeeUp-Bot-03-29",
-        "Инструкция 📙": "https://telegra.ph/Instrukciya-po-Botu-LikeeUp-03-29",
+        "Навигация 🗿": "https://telegra.ph/Navigaciya-v-LikeeUp-Bot-04-16",
+        "Инструкция 📙": "https://telegra.ph/Instrukciya-po-Botu-LikeeUp-04-16",
         "Правила 📕": "https://telegra.ph/Pravila-LikeeUp-03-29",
-        "FAQ ❔": "https://telegra.ph/FAQ-LikeeUp-03-30",
+        "FAQ ❔": "https://telegra.ph/FAQ-LikeeUp-04-16",
         "Актив 🔗": "active",
-        "Подписки | Акции 📈": "catalog",
+        "Подписки 📈": "catalog",
+        "Поддержка 😎": "https://t.me/likee_up_admin"
     }
     for text, menu_name in btns.items():
         if "://" in menu_name:
