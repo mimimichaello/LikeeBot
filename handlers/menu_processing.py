@@ -1,8 +1,5 @@
-﻿from datetime import datetime, timedelta
+﻿from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 from database.orm_query import (
@@ -11,7 +8,6 @@ from database.orm_query import (
     orm_get_menu,
     orm_get_subscribe,
     orm_get_subscriptions,
-    orm_get_user,
 )
 
 from keyboards.inline import (

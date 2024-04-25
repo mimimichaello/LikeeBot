@@ -1,4 +1,5 @@
-﻿import math
+﻿import json
+import math
 import os
 from aiogram import Bot
 from sqlalchemy import func, select, update, delete
@@ -280,6 +281,7 @@ async def reset_sub(session: AsyncSession, user_id: int):
 # Payment
 
 
+
 async def invoice(
     user_id: int,
     subscription_name: str,
@@ -288,6 +290,24 @@ async def invoice(
 ):
     bot = Bot(token=os.getenv("TOKEN"))
     try:
+        provider_data = {
+            "receipt": {
+                "items": [
+                    {
+                        "description": f"{subscription_name}",
+                        "quantity": 1.00,
+                        "amount": {
+                            "value": f"{subscription_price}",
+                            "currency": "RUB",
+                        },
+                        "vat_code": 1,
+                    }
+                ]
+            }
+        }
+
+        provider_data_str = json.dumps(provider_data)
+
         await bot.send_invoice(
             chat_id=user_id,
             title=f"{subscription_name}",
@@ -297,9 +317,13 @@ async def invoice(
             currency="RUB",
             start_parameter="payment",
             prices=[{"label": "Руб", "amount": int(subscription_price * 100)}],
+            provider_data=provider_data_str,  # Передача JSON-строки в provider_data
+            need_phone_number=True,
+            send_phone_number_to_provider=True,
         )
         return True
     except Exception as e:
+        print(f"An error occurred: {e}")
         return False
 
 

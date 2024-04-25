@@ -106,7 +106,7 @@ async def add_banner_description(message: types.Message, state: FSMContext, sess
     name = data.get('name')
     description = message.text.strip()
 
-    # Сохранение описания меню в базе данных
+
     await orm_change_menu(session, name, description)
     await message.answer("Текстовый баннер добавлен/изменен.")
     await state.clear()
@@ -274,7 +274,7 @@ async def add_price(message: types.Message, state: FSMContext, session: AsyncSes
 
         await state.update_data(price=message.text)
 
-    # Добавляем category_id к данным перед сохранением/обновлением подписки
+
     data = await state.get_data()
     if "category" not in data:
         await message.answer("Выберите категорию перед вводом цены.")
