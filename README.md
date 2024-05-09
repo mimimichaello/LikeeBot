@@ -36,3 +36,9 @@
 
 - https://github.com/mimimichaello
 - https://t.me/mimimichaello
+
+## License
+
+[BSD 3-Clause License](https://opensource.org/licenses/BSD-3-Clause)
+
+Copyright (c) 2024-present, mimimichaello - Morozov Alexandr
